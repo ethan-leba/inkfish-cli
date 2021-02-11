@@ -1,8 +1,11 @@
 [tool.poetry]
 name = "inkfish-cli"
-version = "0.1.0"
+version = "0.1.1"
 description = ""
 authors = ["ethan-leba <ethanleba5@gmail.com>"]
+
+[tool.poetry.scripts]
+inkfish = "inkfish_cli.main:app"
 
 [tool.poetry.dependencies]
 python = "^3.7"
