@@ -3,6 +3,7 @@ from typing import NamedTuple
 from dataclasses import asdict
 
 from inkfish_cli.parser import Comment
+import json
 import requests
 import tarfile
 import os
@@ -26,7 +27,7 @@ csrf_token = (
 )
 
 resp = session.post(
-    "https://inkfish.ntuck-neu.site/session",
+    f"{INKFISH_URL}/session",
     headers={
         "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
         "accept-language": "en-US,en;q=0.9",
@@ -49,7 +50,7 @@ resp = session.post(
 # XXX: Won't fetch already graded names
 def get_grading_names(num):
     html = get_soup(
-        f"https://inkfish.ntuck-neu.site/staff/assignments/{num}/grading_tasks"
+        f"{INKFISH_URL}/staff/assignments/{num}/grading_tasks"
     )
 
     tb = html.find("table").tbody
@@ -63,7 +64,7 @@ class AssignmentID(NamedTuple):
 
 
 def get_grade_id(sub_id):
-    html = get_soup(f"https://inkfish.ntuck-neu.site/staff/subs/{sub_id}")
+    html = get_soup(f"{INKFISH_URL}/staff/subs/{sub_id}")
     edit_grade = html.find("a", text="Edit Grade")
 
     return edit_grade and edit_grade.attrs["href"].split("/")[-2]
@@ -71,7 +72,7 @@ def get_grade_id(sub_id):
 
 def get_grading_list(num):
     names = get_grading_names(num)
-    html = get_soup(f"https://inkfish.ntuck-neu.site/staff/assignments/{num}")
+    html = get_soup(f"{INKFISH_URL}/staff/assignments/{num}")
     table_body = html.find("th", text="Student").parent.parent.tbody
 
     grade_d = {}
@@ -89,16 +90,20 @@ def get_grading_list(num):
 
 def download_all(num):
     gl = get_grading_list(num)
+    INKFISH_PATH.mkdir(exist_ok=True)
+    assignment_path = (INKFISH_PATH / str(num))
+    assignment_path.mkdir(exist_ok=True)
 
     for name, sub in gl.items():
         try:
-            download_sub(name, sub)
-        except:
+            download_sub(name, sub, assignment_path)
+        except Exception as e:
             print(f"WARNING: {name} download failed")
+            print(e)
 
 
-def download_sub(name, id: str):
-    r3 = get_soup(f"https://inkfish.ntuck-neu.site/staff/subs/{id}")
+def download_sub(name, id: str, download_loc: Path):
+    r3 = get_soup(f"{INKFISH_URL}/staff/subs/{id}")
 
     dl_link = next(
         link.attrs["href"]
@@ -108,8 +113,7 @@ def download_sub(name, id: str):
 
     gimme = session.get(f"{INKFISH_URL}/{dl_link}")
 
-    INKFISH_PATH.mkdir(exist_ok=True)
-    sub_path = INKFISH_PATH / name.replace(" ", "-").lower()
+    sub_path = download_loc / name.replace(" ", "-").lower()
     tar_path = sub_path.with_suffix(".tar.gz")
     sub_path.mkdir()
 
@@ -144,7 +148,7 @@ def post_comments(project_root: Path, comments: List[Comment]):
 
     grade_id = int(get_grade_id(sub_id))
 
-    edit_html = get_soup(f"https://inkfish.ntuck-neu.site/staff/grades/{grade_id}/edit")
+    edit_html = get_soup(f"{INKFISH_URL}/staff/grades/{grade_id}/edit")
 
     csrf = re.search(
         r"window\.csrf_token = \"(.*?)\"", edit_html.find("script").string
@@ -163,23 +167,23 @@ def post_comments(project_root: Path, comments: List[Comment]):
             "x-csrf-token": csrf,
             "User-Agent": "Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.96 Mobile Safari/537.36",
             "content-type": "application/json; charset=UTF-8",
-            "Origin": "https://inkfish.ntuck-neu.site",
+            "Origin": "{INKFISH_URL}",
             "Sec-Fetch-Site": "same-origin",
             "Sec-Fetch-Mode": "cors",
             "Sec-Fetch-Dest": "empty",
-            "Referer": "https://inkfish.ntuck-neu.site/staff/grades/5792/edit",
+            "Referer": f"{INKFISH_URL}/staff/grades/{grade_id}/edit",
             "Accept-Language": "en-US,en;q=0.9",
         }
 
         response = requests.post(
-            "https://inkfish.ntuck-neu.site/ajax/staff/grades/5792/line_comments",
+            f"{INKFISH_URL}/ajax/staff/grades/{grade_id}/line_comments",
             headers=headers,
             cookies=session.cookies,
             json={"line_comment": json_body},
         )
         if response.status_code != 201:
             print("warning: ", resp.text)
-    print(f"save applied comments at: https://inkfish.ntuck-neu.site/ajax/staff/grades/{grade_id}/edit")
+    print(f"save applied comments at: {INKFISH_URL}/staff/grades/{grade_id}/edit")
 
 
 # post a line comment
