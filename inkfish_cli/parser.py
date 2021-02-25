@@ -33,5 +33,9 @@ def find_comments(file_path: Path):
         return comments
 
 def find_all_comments(submission_path: Path):
-    return [comment for file in submission_path.rglob("*") if file.is_file() for comment in find_comments(file)]
+    # Nothing prevents posting comments on files that aren't part of the OG submission on the inkfish backend,
+    # so we're checking it here
+    with open(submission_path / METAFILE) as f:
+        project_files = [submission_path / Path(file) for file in json.load(f)["files"]]
+    return [comment for file in project_files if file.is_file() for comment in find_comments(file)]
 
