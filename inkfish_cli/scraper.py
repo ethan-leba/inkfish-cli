@@ -11,10 +11,8 @@ from bs4 import BeautifulSoup
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
-INKFISH_URL = "https://inkfish.ntuck-neu.site/"
-INKFISH_PATH = Path("~/inkfish").expanduser()
+from inkfish_cli.constants import *
 
-SUB_ID_FILE = ".inkfish_sub_id"
 
 # def main():
 session: requests.Session = requests.Session()
@@ -122,8 +120,10 @@ def download_sub(name, id: str):
     with tarfile.open(tar_path) as tar:
         tar.extractall(path=sub_path)
 
-    with open(sub_path / SUB_ID_FILE, mode="w") as f:
-        f.write(id)
+    metadata = {"id": id, "files": [str(file.relative_to(sub_path)) for file in Path(sub_path).rglob("*")]}
+
+    with open(sub_path / METAFILE, mode="w") as f:
+        json.dump(metadata, f)
 
     tar_path.unlink()
 
@@ -135,12 +135,12 @@ def save_to_file(filename, resp):
 
 
 def post_comments(project_root: Path, comments: List[Comment]):
-    with open(project_root / SUB_ID_FILE) as f:
-        sub_id = f.read()
+    with open(project_root / METAFILE) as f:
+        sub_id = json.load(f)["id"]
 
     grade_id = get_grade_id(sub_id)
     if not grade_id:
-        session.post(f"{INKFISH_URL}staff/subs/{sub_id}/grades").raise_for_status()
+        raise ValueError(f"Not authenticated to grade submission for {sub_id}, please click the 'Create' button on the grading tasks page.")
 
     grade_id = int(get_grade_id(sub_id))
 

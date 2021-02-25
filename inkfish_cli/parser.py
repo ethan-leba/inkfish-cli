@@ -1,7 +1,9 @@
 from dataclasses import dataclass
+import json
 import re
-
 from pathlib import Path
+
+from inkfish_cli.constants import METAFILE
 
 COMMENT_PATTERN = r"\/\/ ([-]?\d+)pts: (.*)"
 
